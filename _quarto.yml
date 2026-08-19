@@ -1,0 +1,39 @@
+project:
+  type: website
+  output-dir: _site
+
+exclude:
+  - dev_tools/
+
+website:
+  title: "fsbrain fMRI Showcase"
+  search: true
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - href: 01_mni_volumetric/workflow_mni.qmd
+        text: "Workflow A: MNI → fsaverage"
+      - href: 02_cifti_fslr32k/workflow_cifti.qmd
+        text: "Workflow B: CIFTI → fs_LR 32k"
+    right:
+      - icon: github
+        href: https://github.com/dfsp-spirit/fsbrain_fMRI_vis_workflows
+  sidebar:
+    style: docked
+    contents:
+      - href: index.qmd
+        text: Home
+      - section: Workflow A (MNI → fsaverage)
+        contents:
+          - 01_mni_volumetric/workflow_mni.qmd
+      - section: Workflow B (CIFTI → fs_LR 32k)
+        contents:
+          - 02_cifti_fslr32k/workflow_cifti.qmd
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    code-fold: false

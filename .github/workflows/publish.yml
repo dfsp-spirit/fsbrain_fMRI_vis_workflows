@@ -1,0 +1,50 @@
+# Build the Quarto website and publish it to GitHub Pages.
+#
+# NOTE: the brain figures are rendered on a workstation (fsbrain/rgl + magick,
+# needs OpenGL) and committed to the repo. This CI job only *builds the site*
+# from the committed figures -- it does NOT render brain images headlessly yet.
+# Once the scimesh renderer backend lands in fsbrain (feature/scimesh-backend),
+# this job can also render the figures and this note can be removed.
+
+name: Publish Quarto site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@v2
+
+      - name: Install knitr (site build only)
+        run: Rscript -e 'install.packages("knitr", repos = "https://cloud.r-project.org")'
+
+      - name: Render Quarto site
+        run: quarto render
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
