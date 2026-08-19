@@ -14,20 +14,22 @@ The repository serves two purposes:
 ### Workflow A: Volumetric MNI152 -> Surface Mesh (fsaverage)
 * Use Case: Group-level GLMs and contrast maps generated in volumetric MNI152 space (standard SPM, FSL, or AFNI pipelines).
 * Bridging Tool: regfusionr::vol_to_fsaverage() (Wu et al., 2018 Registration Fusion). Call it with `out_dir = NULL` to get the projected per-vertex data for both hemispheres in R directly.
-* Test Dataset: HCP Motor Task Group Contrast (Left Hand > Baseline) via NeuroVault (Image ID: 23516).
-  * URL: https://neurovault.org/media/images/1806/tfMRI_MOTOR_level2_lh_hp200_s4.nii.gz
-* Template Space (IMPORTANT): regfusionr's `template_type` must match the actual space of the input image ('MNI152_orig', 'MNI152_norm', 'Colin27_orig', or 'Colin27_norm'). Verify the image header/space and test the MNI152 variants; a wrong `template_type` gives a slightly misregistered peak. This is exactly what the ground-truth check below is for.
+* Test Dataset: MNI152 central sulcus probability map, BUNDLED with regfusionr (no download needed, no dead-URL risk): `system.file("extdata/testdata/MNI_probMap_ants.central_sulc.nii.gz", package="regfusionr")`. Ground truth is unambiguous: the peak maps to the central sulcus, immediately posterior to the precentral gyrus (motor cortex / hand-knob region).
+  * NOTE: the previously planned "HCP Motor Task Group Contrast via NeuroVault (Image ID 23516)" was checked and is WRONG/dead: image 23516 is actually 'topic 71 fwhm=6' (collection 1459), collection 1806 is 'BrainPedia', and the filename tfMRI_MOTOR_level2_lh_hp200_s4.nii.gz does not exist anywhere. Do not use it. A real HCP motor contrast would be a CIFTI dscalar (32k fs_LR) rather than an MNI volume, so it belongs in Workflow B if desired.
+* Template Space (IMPORTANT): regfusionr's `template_type` must match the actual space of the input image. The bundled central sulc map is MNI152, use `template_type='MNI152_orig'` (with `rf_type='RF_ANTs'`). For other input images, verify the header/space and test the MNI152 variants; a wrong `template_type` gives a slightly misregistered peak. This is exactly what the ground-truth check below is for.
 * Ground Truth Validation Criteria:
-  * Primary activation must map strictly to the right precentral gyrus (motor hand knob / Desikan-Killiany precentral label) and supplementary motor area (SMA).
-  * Postcentral or ipsilateral (left) dominance indicates a coordinate or header flip.
+  * Peak probability must map to the central sulcus (precentral gyrus posterior border / hand-knob region).
+  * Postcentral or otherwise mislocated peaks indicate a wrong template_type, coordinate, or header flip.
   * Checked programmatically in run_mni_validation.R (not just visually).
 * Optional Annotation Tool: brainloc for peak coordinate lookup and anatomical labeling.
 
 ### Workflow B: CIFTI Grayordinates -> Symmetric Mesh (fs_LR_32k)
 * Use Case: Standard outputs from modern fMRI preprocessing pipelines (fMRIPrep, HCP Pipelines, ciftify) in CIFTI-2 format (.dscalar.nii / .dtseries.nii).
 * Bridging Tool: freesurferformats::read.fs.morph.cifti() (PRIMARY; freesurferformats is already an fsbrain dependency and it uses the small 'cifti' package). It reconstructs a full 32,492-length per-vertex vector per hemisphere and sets medial-wall vertices to NA. ciftiTools is an optional alternative (it returns raw cortical arrays; you must place them into the mesh yourself using the CIFTI BrainModel indices).
-* Test Dataset: Standard HCP task contrast or ciftiTools bundled validation dscalar (conte_sub.dscalar.nii / tfMRI_MOTOR_hp200_s2_level2.dscalar.nii).
-  * URL (Sample): https://github.com/mandymejia/ciftiTools/raw/master/inst/extdata/conte_sub.dscalar.nii
+* Test Dataset: ciftiTools bundled dscalar `Conte69.MyelinAndCorrThickness.32k_fs_LR.dscalar.nii` (Conte69 subject; 2 measures per vertex: myelin and cortical thickness; 32k fs_LR space - matches the meshes already in data/).
+  * URL (raw GitHub master, VERIFIED live): https://raw.githubusercontent.com/mandymejia/ciftiTools/master/inst/extdata/Conte69.MyelinAndCorrThickness.32k_fs_LR.dscalar.nii
+  * More robust: ciftiTools is on CRAN, so the file ships with the installed package: `system.file("extdata", "Conte69.MyelinAndCorrThickness.32k_fs_LR.dscalar.nii", package="ciftiTools")` - no URL, versioned with the package.
+  * NOTE: the previously planned 'conte_sub.dscalar.nii' no longer exists in ciftiTools (renamed/removed); that URL was dead.
 * Mesh Source: fs_LR 32k GIFTI surfaces (.surf.gii, 32,492 vertices per hemisphere) from ciftiTools, TemplateFlow (tpl-fsLR), or Diedrichsen Lab GitHub. Already present in 02_cifti_fslr32k/data/ (DiedrichsenLab fs_LR_32).
 * Vertex Model (IMPORTANT): a CIFTI-2 file does NOT contain 32,492 values per hemisphere. The cortical arrays hold only the valid-cortex values: 29,657 (left) and 29,755 (right) - the fs_LR 32k meshes have 32,492 vertices per hemisphere INCLUDING the medial wall (2,835 / 2,737 medial-wall vertices). The CIFTI BrainModel block lists the surface vertex index for each value; these indices scatter the ~29.6k values into the 32,492-vertex mesh, and all remaining vertices are NA. fsbrain needs the full 32,492-length vector (medial wall = NA), which read.fs.morph.cifti() returns directly.
 * Ground Truth Validation Criteria:
@@ -75,13 +77,13 @@ fsbrain-fmri-showcase/
 
 ### Phase 2: Workflow Scripting & Core Logic
 - [ ] Script 1 (run_mni_pipeline.R):
-  - Download NeuroVault image.
-  - Execute regfusionr::vol_to_fsaverage(input_img, template_type = <verified space>, out_dir = NULL) to get per-vertex data for 'lh' and 'rh' in R.
-  - Render with fsbrain::vis.symmetric.data.on.subject() (two-tailed symmetric thresholding, e.g. |t| > 3.1, map_to_NA = 0) on fsaverage (fsbrain::download_fsaverage()).
+  - No download needed: use the regfusionr-bundled volume via system.file() (MNI_probMap_ants.central_sulc.nii.gz).
+  - Execute regfusionr::vol_to_fsaverage(input_img, template_type = 'MNI152_orig', rf_type = 'RF_ANTs', out_dir = NULL) to get per-vertex data for 'lh' and 'rh' in R.
+  - Render with fsbrain::vis.data.on.subject() (sequential colormap; threshold the probability map, e.g. prob > 0.5, map_to_NA = 0) on fsaverage (fsbrain::download_fsaverage()).
   - Export multi-angle static PNG figures (lateral, medial, dorsal) via fsbrain::export() / vislayout.from.coloredmeshes().
-- [ ] Script 1b (run_mni_validation.R): AUTOMATED ground-truth check - load the Desikan-Killiany fsaverage annot, find the peak |t| vertex, and assert its label is precentral gyrus (or SMA); report label + distance to the motor hand knob. Makes the 'ground truth validation' reproducible instead of visual-only.
+- [ ] Script 1b (run_mni_validation.R): AUTOMATED ground-truth check - find the peak probability vertex and assert it sits on the central sulcus (bordering the precentral gyrus / hand-knob region); report label + distance. Makes the 'ground truth validation' reproducible instead of visual-only.
 - [ ] Script 2 (run_cifti_pipeline.R):
-  - Read sample CIFTI .dscalar.nii with freesurferformats::read.fs.morph.cifti() for 'lh' and 'rh' (returns 32,492-length vectors, medial wall = NA).
+  - Read the Conte69 dscalar with freesurferformats::read.fs.morph.cifti() for 'lh' and 'rh' (returns 32,492-length vectors, medial wall = NA). The file has 2 measures; select cortical thickness with data_column = 2L (myelin is column 1).
   - Render onto the fs_LR_32k GIFTI surfaces via the preloaded-mesh path: coloredmesh.from.preloaded.data() + vislayout.from.coloredmeshes() / fsbrain::export(). (fs_LR 32k is not a FreeSurfer subject dir, so vis.data.on.subject() is not the right entry point here.)
   - Verify medial wall masking (no values on medial wall vertices).
 - [ ] Script 2b (run_cifti_validation.R): AUTOMATED ground-truth check - locate the peak vertex in the 32k mesh and confirm it is in the precentral/sensorimotor region (use the Yeo 7-network label files already in 02_cifti_fslr32k/data/, or an fs_LR aparc if added).
@@ -91,7 +93,7 @@ fsbrain-fmri-showcase/
   - Context: Why volume-to-surface mapping matters in fMRI.
   - Explanation of Registration Fusion (regfusionr).
   - Code block + embedded high-res rendered figures.
-  - Anatomical validation breakdown (confirming right motor hand knob) - include output of run_mni_validation.R.
+  - Anatomical validation breakdown (confirming central sulcus / motor hand-knob region) - include output of run_mni_validation.R.
 - [ ] Write 02_cifti_fslr32k/workflow_cifti.qmd:
   - Context: The shift from fsaverage to fs_LR 32k grayordinates in HCP/fMRIPrep.
   - Working with GIFTI meshes and CIFTI scalar vectors (vertex model: 29,657/29,755 values -> 32,492-vertex mesh via BrainModel indices; medial wall = NA).
