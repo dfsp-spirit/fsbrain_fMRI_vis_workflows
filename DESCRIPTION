@@ -1,0 +1,23 @@
+Package: fsbrainFmriVisWorkflows
+Type: Project
+Title: fsbrain fMRI Visualization Workflows
+Description: R apps demonstrating fMRI visualization workflows using fsbrain.
+    Two validated workflows: volumetric MNI152 to fsaverage (regfusionr) and
+    CIFTI grayordinates to fs_LR 32k (freesurferformats).
+Authors@R: person("Tim", "Sch\u00e4fer", email = "ts+code@rcmd.org",
+    role = c("aut", "cre"))
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.0)
+Imports:
+    fsbrain,
+    freesurferformats,
+    regfusionr,
+    cifti,
+    magick,
+    rgl,
+    gifti,
+    oce
+Suggests:
+    knitr,
+    rmarkdown
