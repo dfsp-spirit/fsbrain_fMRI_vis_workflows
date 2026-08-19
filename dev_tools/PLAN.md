@@ -26,16 +26,15 @@ The repository serves two purposes:
 ### Workflow B: CIFTI Grayordinates -> Symmetric Mesh (fs_LR_32k)
 * Use Case: Standard outputs from modern fMRI preprocessing pipelines (fMRIPrep, HCP Pipelines, ciftify) in CIFTI-2 format (.dscalar.nii / .dtseries.nii).
 * Bridging Tool: freesurferformats::read.fs.morph.cifti() (PRIMARY; freesurferformats is already an fsbrain dependency and it uses the small 'cifti' package). It reconstructs a full 32,492-length per-vertex vector per hemisphere and sets medial-wall vertices to NA. ciftiTools is an optional alternative (it returns raw cortical arrays; you must place them into the mesh yourself using the CIFTI BrainModel indices).
-* Test Dataset: ciftiTools bundled dscalar `Conte69.MyelinAndCorrThickness.32k_fs_LR.dscalar.nii` (Conte69 subject; 2 measures per vertex: myelin and cortical thickness; 32k fs_LR space - matches the meshes already in data/).
-  * URL (raw GitHub master, VERIFIED live): https://raw.githubusercontent.com/mandymejia/ciftiTools/master/inst/extdata/Conte69.MyelinAndCorrThickness.32k_fs_LR.dscalar.nii
-  * More robust: ciftiTools is on CRAN, so the file ships with the installed package: `system.file("extdata", "Conte69.MyelinAndCorrThickness.32k_fs_LR.dscalar.nii", package="ciftiTools")` - no URL, versioned with the package.
-  * NOTE: the previously planned 'conte_sub.dscalar.nii' no longer exists in ciftiTools (renamed/removed); that URL was dead.
+* Test Dataset: `fs_LR.32k.LR.thickness.dscalar.nii` (cortical thickness) - ALREADY PRESENT in 02_cifti_fslr32k/data/, same source (DiedrichsenLab fs_LR_32) as the meshes and Yeo labels, so it is guaranteed aligned with them.
+  * Vertex model (verified): 32,492 vertices/hemi; valid cortex 29,696 (L) + 29,716 (R) = 59,412 = the standard fs_LR 32k cortical count; medial wall = NA (2,796 / 2,776).
+  * Alternative: `Conte69.MyelinAndCorrThickness.32k_fs_LR.dscalar.nii` (ciftiTools, raw GitHub master URL verified live) - but CAUTION: it maps to the Conte69 subject's OWN 32k mesh (medial wall 2,068/1,965), NOT the standard fs_LR 32k mesh. Pair it only with Conte69 surfaces (e.g. HCP/BALSA 'Conte69.*.32k_fs_LR.surf.gii'); do NOT render it on the DiedrichsenLab meshes (misalignment).
 * Mesh Source: fs_LR 32k GIFTI surfaces (.surf.gii, 32,492 vertices per hemisphere) from ciftiTools, TemplateFlow (tpl-fsLR), or Diedrichsen Lab GitHub. Already present in 02_cifti_fslr32k/data/ (DiedrichsenLab fs_LR_32).
 * Vertex Model (IMPORTANT): a CIFTI-2 file does NOT contain 32,492 values per hemisphere. The cortical arrays hold only the valid-cortex values: 29,657 (left) and 29,755 (right) - the fs_LR 32k meshes have 32,492 vertices per hemisphere INCLUDING the medial wall (2,835 / 2,737 medial-wall vertices). The CIFTI BrainModel block lists the surface vertex index for each value; these indices scatter the ~29.6k values into the 32,492-vertex mesh, and all remaining vertices are NA. fsbrain needs the full 32,492-length vector (medial wall = NA), which read.fs.morph.cifti() returns directly.
 * Ground Truth Validation Criteria:
   * Cortical values land at the BrainModel vertex indices inside the 32,492-vertex mesh per hemisphere; no index shifting or inverted polar coordinates.
-  * Medial wall vertices carry no value (NA) and are masked in the render.
-  * Anatomical check: an HCP motor task contrast peaks in the precentral hand-knob region (checked programmatically in run_cifti_validation.R).
+  * Medial wall vertices carry no value (NA) and are masked in the render; total cortical vertices (L+R) = 59,412.
+  * Anatomical check: peak cortical thickness lands in the thickest-cortex region (temporal pole / limbic cortex, Yeo network 5) - checked programmatically in run_cifti_validation.R.
 
 ---
 
@@ -74,18 +73,19 @@ fsbrain-fmri-showcase/
 - [ ] Implement download_if_missing() utility in R to download sample data from NeuroVault and raw GitHub endpoints on demand (avoid committing large binary data to git).
 - [ ] Verify the downloaded NeuroVault image space: check the NIFTI header/affine to determine whether it is 'MNI152_orig' or 'MNI152_norm' space (sets the regfusionr::vol_to_fsaverage() `template_type`).
 - [ ] Verify the fs_LR 32k GIFTI surface vertex counts (V = 32,492 per hemisphere). NOTE: inflated meshes + sulc/Yeo label files are already present in 02_cifti_fslr32k/data/ (DiedrichsenLab fs_LR_32); confirm they match the HCP/CIFTI fs_LR standard space.
+- [ ] Verify the fs_LR dscalars (thickness/sulc) in 02_cifti_fslr32k/data/ align with the meshes: thickness has NA on the medial wall and 59,412 total cortical vertices (verified: DONE in this scaffold). NOTE: the Conte69 dscalar (also in data/) pairs ONLY with Conte69 surfaces - do not use it with the DiedrichsenLab meshes.
 
 ### Phase 2: Workflow Scripting & Core Logic
 - [ ] Script 1 (run_mni_pipeline.R):
   - No download needed: use the regfusionr-bundled volume via system.file() (MNI_probMap_ants.central_sulc.nii.gz).
   - Execute regfusionr::vol_to_fsaverage(input_img, template_type = 'MNI152_orig', rf_type = 'RF_ANTs', out_dir = NULL) to get per-vertex data for 'lh' and 'rh' in R.
-  - Render with fsbrain::vis.data.on.subject() (sequential colormap; threshold the probability map, e.g. prob > 0.5, map_to_NA = 0) on fsaverage (fsbrain::download_fsaverage()).
+  - Render with fsbrain::vis.data.on.subject(subjects_dir = Sys.getenv("SUBJECTS_DIR"), "fsaverage", ...) (sequential colormap; threshold the probability map, e.g. prob > 0.5, map_to_NA = 0). fsaverage is taken from the existing FreeSurfer install via the SUBJECTS_DIR env var (no download needed).
   - Export multi-angle static PNG figures (lateral, medial, dorsal) via fsbrain::export() / vislayout.from.coloredmeshes().
 - [ ] Script 1b (run_mni_validation.R): AUTOMATED ground-truth check - find the peak probability vertex and assert it sits on the central sulcus (bordering the precentral gyrus / hand-knob region); report label + distance. Makes the 'ground truth validation' reproducible instead of visual-only.
 - [ ] Script 2 (run_cifti_pipeline.R):
-  - Read the Conte69 dscalar with freesurferformats::read.fs.morph.cifti() for 'lh' and 'rh' (returns 32,492-length vectors, medial wall = NA). The file has 2 measures; select cortical thickness with data_column = 2L (myelin is column 1).
+  - Read the DiedrichsenLab thickness dscalar with freesurferformats::read.fs.morph.cifti() for 'lh' and 'rh' (returns 32,492-length vectors, medial wall = NA).
   - Render onto the fs_LR_32k GIFTI surfaces via the preloaded-mesh path: coloredmesh.from.preloaded.data() + vislayout.from.coloredmeshes() / fsbrain::export(). (fs_LR 32k is not a FreeSurfer subject dir, so vis.data.on.subject() is not the right entry point here.)
-  - Verify medial wall masking (no values on medial wall vertices).
+  - Verify medial wall masking (no values on medial wall vertices) and total cortical count = 59,412.
 - [ ] Script 2b (run_cifti_validation.R): AUTOMATED ground-truth check - locate the peak vertex in the 32k mesh and confirm it is in the precentral/sensorimotor region (use the Yeo 7-network label files already in 02_cifti_fslr32k/data/, or an fs_LR aparc if added).
 
 ### Phase 3: Quarto / R Markdown Showcase
