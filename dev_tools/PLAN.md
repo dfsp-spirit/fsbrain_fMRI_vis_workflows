@@ -13,23 +13,27 @@ The repository serves two purposes:
 
 ### Workflow A: Volumetric MNI152 -> Surface Mesh (fsaverage)
 * Use Case: Group-level GLMs and contrast maps generated in volumetric MNI152 space (standard SPM, FSL, or AFNI pipelines).
-* Bridging Tool: regfusionr::vol_to_fsaverage() (Wu et al., 2018 Registration Fusion).
+* Bridging Tool: regfusionr::vol_to_fsaverage() (Wu et al., 2018 Registration Fusion). Call it with `out_dir = NULL` to get the projected per-vertex data for both hemispheres in R directly.
 * Test Dataset: HCP Motor Task Group Contrast (Left Hand > Baseline) via NeuroVault (Image ID: 23516).
   * URL: https://neurovault.org/media/images/1806/tfMRI_MOTOR_level2_lh_hp200_s4.nii.gz
+* Template Space (IMPORTANT): regfusionr's `template_type` must match the actual space of the input image ('MNI152_orig', 'MNI152_norm', 'Colin27_orig', or 'Colin27_norm'). Verify the image header/space and test the MNI152 variants; a wrong `template_type` gives a slightly misregistered peak. This is exactly what the ground-truth check below is for.
 * Ground Truth Validation Criteria:
   * Primary activation must map strictly to the right precentral gyrus (motor hand knob / Desikan-Killiany precentral label) and supplementary motor area (SMA).
   * Postcentral or ipsilateral (left) dominance indicates a coordinate or header flip.
+  * Checked programmatically in run_mni_validation.R (not just visually).
 * Optional Annotation Tool: brainloc for peak coordinate lookup and anatomical labeling.
 
 ### Workflow B: CIFTI Grayordinates -> Symmetric Mesh (fs_LR_32k)
 * Use Case: Standard outputs from modern fMRI preprocessing pipelines (fMRIPrep, HCP Pipelines, ciftify) in CIFTI-2 format (.dscalar.nii / .dtseries.nii).
-* Bridging Tool: ciftiTools (or manual GIFTI reading via freesurferformats).
+* Bridging Tool: freesurferformats::read.fs.morph.cifti() (PRIMARY; freesurferformats is already an fsbrain dependency and it uses the small 'cifti' package). It reconstructs a full 32,492-length per-vertex vector per hemisphere and sets medial-wall vertices to NA. ciftiTools is an optional alternative (it returns raw cortical arrays; you must place them into the mesh yourself using the CIFTI BrainModel indices).
 * Test Dataset: Standard HCP task contrast or ciftiTools bundled validation dscalar (conte_sub.dscalar.nii / tfMRI_MOTOR_hp200_s2_level2.dscalar.nii).
   * URL (Sample): https://github.com/mandymejia/ciftiTools/raw/master/inst/extdata/conte_sub.dscalar.nii
-* Mesh Source: fs_LR 32k GIFTI surfaces (.surf.gii, 32,492 vertices per hemisphere) from ciftiTools, TemplateFlow (tpl-fsLR), or Diedrichsen Lab GitHub.
+* Mesh Source: fs_LR 32k GIFTI surfaces (.surf.gii, 32,492 vertices per hemisphere) from ciftiTools, TemplateFlow (tpl-fsLR), or Diedrichsen Lab GitHub. Already present in 02_cifti_fslr32k/data/ (DiedrichsenLab fs_LR_32).
+* Vertex Model (IMPORTANT): a CIFTI-2 file does NOT contain 32,492 values per hemisphere. The cortical arrays hold only the valid-cortex values: 29,657 (left) and 29,755 (right) - the fs_LR 32k meshes have 32,492 vertices per hemisphere INCLUDING the medial wall (2,835 / 2,737 medial-wall vertices). The CIFTI BrainModel block lists the surface vertex index for each value; these indices scatter the ~29.6k values into the 32,492-vertex mesh, and all remaining vertices are NA. fsbrain needs the full 32,492-length vector (medial wall = NA), which read.fs.morph.cifti() returns directly.
 * Ground Truth Validation Criteria:
-  * Cortex left and right data arrays align exactly to 32,492 vertices.
-  * Medial wall boundaries match without index shifting or inverted polar coordinates.
+  * Cortical values land at the BrainModel vertex indices inside the 32,492-vertex mesh per hemisphere; no index shifting or inverted polar coordinates.
+  * Medial wall vertices carry no value (NA) and are masked in the render.
+  * Anatomical check: an HCP motor task contrast peaks in the precentral hand-knob region (checked programmatically in run_cifti_validation.R).
 
 ---
 
@@ -44,17 +48,19 @@ fsbrain-fmri-showcase/
 |
 |-- 01_mni_volumetric/             # Workflow A
 |   |-- workflow_mni.qmd           # Step-by-step tutorial with code and rendered views
-|   |-- run_mni_pipeline.R         # Standalone, runnable CLI script
+|   |-- run_mni_pipeline.R         # Standalone, runnable CLI script (mapping + rendering)
+|   |-- run_mni_validation.R       # Automated ground-truth check (peak label assertion)
 |   `-- get_data.R                 # Download helper for NeuroVault MNI volume
 |
 |-- 02_cifti_fslr32k/              # Workflow B
 |   |-- workflow_cifti.qmd         # Step-by-step tutorial for CIFTI & fs_LR_32k
-|   |-- run_cifti_pipeline.R       # Standalone, runnable CLI script
-|   `-- data/                      # Bundled or scripted download for fs_LR 32k GIFTI meshes
+|   |-- run_cifti_pipeline.R       # Standalone, runnable CLI script (mapping + rendering)
+|   |-- run_cifti_validation.R     # Automated ground-truth check (peak label assertion)
+|   `-- data/                      # fs_LR 32k GIFTI meshes + Yeo labels (already present)
 |
 |-- .github/
 |   `-- workflows/
-|       `-- publish.yml            # CI/CD: render Quarto to GitHub Pages automatically
+|       `-- publish.yml            # CI/CD: build Quarto site and publish to GitHub Pages
 `-- renv.lock                      # Locked dependencies for reproducible execution
 ```
 
@@ -64,43 +70,56 @@ fsbrain-fmri-showcase/
 
 ### Phase 1: Data Access & Caching Scripts
 - [ ] Implement download_if_missing() utility in R to download sample data from NeuroVault and raw GitHub endpoints on demand (avoid committing large binary data to git).
-- [ ] Acquire tpl-fsLR_hemi-{L,R}_den-32k_inflated.surf.gii and verify vertex counts (V = 32,492).
+- [ ] Verify the downloaded NeuroVault image space: check the NIFTI header/affine to determine whether it is 'MNI152_orig' or 'MNI152_norm' space (sets the regfusionr::vol_to_fsaverage() `template_type`).
+- [ ] Verify the fs_LR 32k GIFTI surface vertex counts (V = 32,492 per hemisphere). NOTE: inflated meshes + sulc/Yeo label files are already present in 02_cifti_fslr32k/data/ (DiedrichsenLab fs_LR_32); confirm they match the HCP/CIFTI fs_LR standard space.
 
 ### Phase 2: Workflow Scripting & Core Logic
 - [ ] Script 1 (run_mni_pipeline.R):
   - Download NeuroVault image.
-  - Execute regfusionr::vol_to_fsaverage().
-  - Render with fsbrain::vis.data.on.subject() using two-tailed symmetric thresholding (e.g., |t| > 3.1).
-  - Export multi-angle static PNG figures (lateral, medial, dorsal).
+  - Execute regfusionr::vol_to_fsaverage(input_img, template_type = <verified space>, out_dir = NULL) to get per-vertex data for 'lh' and 'rh' in R.
+  - Render with fsbrain::vis.symmetric.data.on.subject() (two-tailed symmetric thresholding, e.g. |t| > 3.1, map_to_NA = 0) on fsaverage (fsbrain::download_fsaverage()).
+  - Export multi-angle static PNG figures (lateral, medial, dorsal) via fsbrain::export() / vislayout.from.coloredmeshes().
+- [ ] Script 1b (run_mni_validation.R): AUTOMATED ground-truth check - load the Desikan-Killiany fsaverage annot, find the peak |t| vertex, and assert its label is precentral gyrus (or SMA); report label + distance to the motor hand knob. Makes the 'ground truth validation' reproducible instead of visual-only.
 - [ ] Script 2 (run_cifti_pipeline.R):
-  - Read sample CIFTI .dscalar.nii.
-  - Extract left and right cortical arrays.
-  - Render directly onto fs_LR_32k GIFTI surfaces.
-  - Verify medial wall masking.
+  - Read sample CIFTI .dscalar.nii with freesurferformats::read.fs.morph.cifti() for 'lh' and 'rh' (returns 32,492-length vectors, medial wall = NA).
+  - Render onto the fs_LR_32k GIFTI surfaces via the preloaded-mesh path: coloredmesh.from.preloaded.data() + vislayout.from.coloredmeshes() / fsbrain::export(). (fs_LR 32k is not a FreeSurfer subject dir, so vis.data.on.subject() is not the right entry point here.)
+  - Verify medial wall masking (no values on medial wall vertices).
+- [ ] Script 2b (run_cifti_validation.R): AUTOMATED ground-truth check - locate the peak vertex in the 32k mesh and confirm it is in the precentral/sensorimotor region (use the Yeo 7-network label files already in 02_cifti_fslr32k/data/, or an fs_LR aparc if added).
 
 ### Phase 3: Quarto / R Markdown Showcase
 - [ ] Write 01_mni_volumetric/workflow_mni.qmd:
   - Context: Why volume-to-surface mapping matters in fMRI.
   - Explanation of Registration Fusion (regfusionr).
   - Code block + embedded high-res rendered figures.
-  - Anatomical validation breakdown (confirming right motor hand knob).
+  - Anatomical validation breakdown (confirming right motor hand knob) - include output of run_mni_validation.R.
 - [ ] Write 02_cifti_fslr32k/workflow_cifti.qmd:
   - Context: The shift from fsaverage to fs_LR 32k grayordinates in HCP/fMRIPrep.
-  - Working with GIFTI meshes and CIFTI scalar vectors.
+  - Working with GIFTI meshes and CIFTI scalar vectors (vertex model: 29,657/29,755 values -> 32,492-vertex mesh via BrainModel indices; medial wall = NA).
   - Code block + embedded high-res rendered figures.
+  - Medial wall / vertex-mapping validation - include output of run_cifti_validation.R.
 
 ### Phase 4: CI/CD & Publication
 - [ ] Configure _quarto.yml for website generation.
 - [ ] Set up GitHub Actions workflow to build and push rendered HTML to GitHub Pages.
 - [ ] Link live demo from fsbrain main repository README.
 
+### Rendering / CI status (IMPORTANT - current fsbrain version)
+- Figures are rendered with the CURRENT fsbrain default backend (rgl + magick for image merge). This requires a working display / OpenGL on the rendering machine, so:
+  - Render the figures on a workstation (interactive R with a display) and commit the PNGs, or run the pipeline on a machine with X/OpenGL.
+  - For now, CI only builds the Quarto site and publishes it; it does NOT render the brain figures headlessly yet. Showing how the workflows work matters more than CI rendering at this stage.
+- The scimesh software renderer (GPU-free, headless, CPU-only) is the planned future backend that will make rendering work in CI: fsbrain feature branch 'feature/scimesh-backend' adds `options(fsbrain.renderer_backend = "scimesh")` for static PNG output. scimesh is not on CRAN yet (submission in progress; R CMD check passes), so it is installed from GitHub for now. Once the fsbrain integration lands and scimesh is on CRAN, Phase 4 CI will render the full site headlessly. This plan is updated at that point.
+
 ---
 
 ## 5. Required R Dependencies
-* fsbrain
-* freesurferformats
-* regfusionr
-* brainloc
-* ciftiTools
+* fsbrain (current version: rgl default renderer + `fsbrain.renderer_backend` option)
+* freesurferformats (provides read.fs.morph.cifti() for CIFTI cortex extraction; already an fsbrain dependency)
+* cifti (required by freesurferformats::read.fs.morph.cifti())
+* regfusionr (recommend `oce` for interpolation)
+* brainloc (optional, peak coordinate lookup)
+* ciftiTools (optional alternative CIFTI reader)
 * gifti
-* rgl
+* rgl (current rendering backend; needs display/OpenGL)
+* magick (required by the current image export/merge path)
+* scimesh (future headless renderer backend; not on CRAN yet, install from GitHub)
+* Quarto / Pandoc (site rendering; not R packages but required)
