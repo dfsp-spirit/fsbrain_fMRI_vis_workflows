@@ -21,7 +21,6 @@ The repository serves two purposes:
   * Peak probability must map to the central sulcus (precentral gyrus posterior border / hand-knob region).
   * Postcentral or otherwise mislocated peaks indicate a wrong template_type, coordinate, or header flip.
   * Checked programmatically in run_mni_validation.R (not just visually).
-* Optional Annotation Tool: brainloc for peak coordinate lookup and anatomical labeling.
 
 ### Workflow B: CIFTI Grayordinates -> Symmetric Mesh (fs_LR_32k)
 * Use Case: Standard outputs from modern fMRI preprocessing pipelines (fMRIPrep, HCP Pipelines, ciftify) in CIFTI-2 format (.dscalar.nii / .dtseries.nii).
@@ -118,7 +117,6 @@ fsbrain-fmri-showcase/
 * freesurferformats (provides read.fs.morph.cifti() for CIFTI cortex extraction; already an fsbrain dependency)
 * cifti (required by freesurferformats::read.fs.morph.cifti())
 * regfusionr (recommend `oce` for interpolation)
-* brainloc (optional, peak coordinate lookup)
 * ciftiTools (optional alternative CIFTI reader)
 * gifti
 * rgl (current rendering backend; needs display/OpenGL)
