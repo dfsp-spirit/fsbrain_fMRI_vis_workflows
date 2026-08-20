@@ -36,12 +36,12 @@ jobs:
         uses: r-lib/actions/setup-r@v2
 
       - name: Install knitr and rmarkdown (site build only)
-        # Use the Posit Package Manager binary repo configured by
-        # r-lib/actions/setup-r (via use-public-rspm). Do NOT hardcode a CRAN
-        # mirror here: forcing source packages requires a full toolchain and
-        # system libs (e.g. libuv for 'fs'), which are not all present on the
-        # runner, and caused the previous failures.
-        run: Rscript -e 'install.packages(c("knitr", "rmarkdown"))'
+        # Use the Posit Package Manager binary repo that r-lib/actions/setup-r
+        # exports via the RSPM env var. Do NOT hardcode a CRAN mirror: source
+        # packages need a full toolchain/system libs (e.g. libuv for 'fs').
+        # We cannot rely on options(repos) here: the repo's project .Rprofile
+        # shadows the user ~/.Rprofile that setup-r writes, so repos is unset.
+        run: Rscript -e 'install.packages(c("knitr", "rmarkdown"), repos = Sys.getenv("RSPM"))'
 
       - name: Render Quarto site
         run: quarto render
