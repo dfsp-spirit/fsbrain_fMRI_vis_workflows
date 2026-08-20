@@ -9,13 +9,27 @@ Two workflows, each with a standalone pipeline script and an automated ground-tr
 | **A**: Volumetric MNI152 → fsaverage (regfusionr) | `01_mni_volumetric/run_mni_pipeline.R` | `01_mni_volumetric/run_mni_validation.R` |
 | **B**: CIFTI grayordinates → fs_LR 32k (freesurferformats) | `02_cifti_fslr32k/run_cifti_pipeline.R` | `02_cifti_fslr32k/run_cifti_validation.R` |
 
-## Requirements
+
+** Browse the R markdown documents online **
+
+[dfsp-spirit.github.io/fsbrain_fMRI_vis_workflows/](https://dfsp-spirit.github.io/fsbrain_fMRI_vis_workflows/)
+
+
+
+
+
+## Reproducing / Building on your local computer
+
+This is not optional.
+
+
+### Requirements
 
 - R ≥ 4.x, plus `fsbrain`, `freesurferformats`, `regfusionr`, `cifti`, `magick`, `rgl`, `gifti` (and `oce`, recommended by regfusionr).
 - Workflow A needs a FreeSurfer install with **fsaverage** (the `SUBJECTS_DIR` env var must point at a subjects dir containing `fsaverage`). See `01_mni_volumetric/get_data.R`.
 - Rendering currently uses the fsbrain default backend (rgl + magick), so a display/OpenGL is required to produce the PNGs.
 
-## Quickstart
+### Quickstart
 
 Run from the repository root:
 
