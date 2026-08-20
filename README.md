@@ -1,13 +1,10 @@
 # fsbrain_fMRI_vis_workflows
 
-R apps demonstrating fMRI visualization workflows using [fsbrain](https://github.com/dfsp-spirit/fsbrain). See `dev_tools/PLAN.md` for the full project plan.
+R apps demonstrating fMRI visualization workflows using [fsbrain](https://github.com/dfsp-spirit/fsbrain).
 
-Two workflows, each with a standalone pipeline script and an automated ground-truth validation script:
+The documents in here are linked from the fsbrain repo, documentation section of the README.
 
-| Workflow | Pipeline | Validation |
-|---|---|---|
-| **A**: Volumetric MNI152 → fsaverage (regfusionr) | `01_mni_volumetric/run_mni_pipeline.R` | `01_mni_volumetric/run_mni_validation.R` |
-| **B**: CIFTI grayordinates → fs_LR 32k (freesurferformats) | `02_cifti_fslr32k/run_cifti_pipeline.R` | `02_cifti_fslr32k/run_cifti_validation.R` |
+For users, the interesting part is:
 
 
 **Browse the R markdown documents online:**
@@ -15,6 +12,15 @@ Two workflows, each with a standalone pipeline script and an automated ground-tr
 [dfsp-spirit.github.io/fsbrain_fMRI_vis_workflows/](https://dfsp-spirit.github.io/fsbrain_fMRI_vis_workflows/)
 
 
+
+## Content Overview
+
+Two workflows, each with a standalone pipeline script and an automated ground-truth validation script:
+
+| Workflow | Pipeline | Validation |
+|---|---|---|
+| **A**: Volumetric MNI152 → fsaverage (regfusionr) | `01_mni_volumetric/run_mni_pipeline.R` | `01_mni_volumetric/run_mni_validation.R` |
+| **B**: CIFTI grayordinates → fs_LR 32k (freesurferformats) | `02_cifti_fslr32k/run_cifti_pipeline.R` | `02_cifti_fslr32k/run_cifti_validation.R` |
 
 
 
