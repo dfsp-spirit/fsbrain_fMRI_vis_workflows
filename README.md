@@ -10,7 +10,7 @@ Two workflows, each with a standalone pipeline script and an automated ground-tr
 | **B**: CIFTI grayordinates → fs_LR 32k (freesurferformats) | `02_cifti_fslr32k/run_cifti_pipeline.R` | `02_cifti_fslr32k/run_cifti_validation.R` |
 
 
-** Browse the R markdown documents online **
+**Browse the R markdown documents online:**
 
 [dfsp-spirit.github.io/fsbrain_fMRI_vis_workflows/](https://dfsp-spirit.github.io/fsbrain_fMRI_vis_workflows/)
 
